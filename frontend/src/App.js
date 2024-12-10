@@ -9,7 +9,13 @@ const App = () => {
     const [uploadedImage, setUploadedImage] = useState(null);
     const [outputImage, setOutputImage] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [isHovered, setIsHovered] = useState(false); // 控制蒙版显示状态
+    const [isHovered, setIsHovered] = useState(false);
+
+    const [style1, setStyle1] = useState("");
+    const [style2, setStyle2] = useState("");
+    const [blendWeight, setBlendWeight] = useState(0.5);
+    const [isBlending, setIsBlending] = useState(false);
+    const [blendedImage, setBlendedImage] = useState(null);
 
     useEffect(() => {
         const fetchStyles = async () => {
@@ -17,7 +23,11 @@ const App = () => {
                 const response = await fetch("http://localhost:5001/styles/list");
                 const data = await response.json();
                 setStyles(data);
-                if (data.length > 0) setSelectedStyle(data[0].styleName);
+                if (data.length > 0) {
+                    setSelectedStyle(data[0].styleName);
+                    setStyle1(data[0].styleName);
+                    setStyle2(data[1]?.styleName || data[0].styleName);
+                }
             } catch (error) {
                 console.error("Error fetching styles:", error);
             }
@@ -28,8 +38,9 @@ const App = () => {
     const handleFileChange = (event) => {
         const file = event.target.files[0];
         setSelectedFile(file);
-        setUploadedImage(URL.createObjectURL(file)); // 生成文件的临时 URL
-        setOutputImage(null); // 重置输出图片
+        setUploadedImage(URL.createObjectURL(file));
+        setOutputImage(null);
+        setBlendedImage(null);
     };
 
     const handleStyleSelect = (styleName) => {
@@ -51,7 +62,7 @@ const App = () => {
         formData.append("style", selectedStyle);
 
         try {
-            setIsLoading(true); // 开始加载
+            setIsLoading(true);
             const response = await fetch("http://localhost:5001/upload", {
                 method: "POST",
                 body: formData,
@@ -62,10 +73,8 @@ const App = () => {
             }
 
             const data = await response.json();
-            console.log("Response data:", data);
-
             if (data.imagePath) {
-                setOutputImage(`http://localhost:5001${data.imagePath}`); // 设置输出图片路径
+                setOutputImage(`http://localhost:5001${data.imagePath}`);
             } else {
                 throw new Error("Invalid response from server.");
             }
@@ -73,69 +82,112 @@ const App = () => {
             console.error("Error applying style:", error);
             alert("Failed to apply style. Please try again.");
         } finally {
-            setIsLoading(false); // 停止加载
+            setIsLoading(false);
         }
     };
 
-    const handleDownload = async () => {
-        if (!outputImage) {
-            alert("No styled image available to download.");
+    const handleDownload = async (imageUrl, fileName) => {
+        if (!imageUrl) {
+            alert("No image available to download.");
             return;
         }
 
         try {
-            const response = await fetch(outputImage);
+            const response = await fetch(imageUrl);
             if (!response.ok) {
                 throw new Error(`Failed to fetch image: ${response.statusText}`);
             }
-            const blob = await response.blob(); // 将响应转为 Blob 对象
+            const blob = await response.blob();
             const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob); // 创建临时 URL
-            link.download = "styled_image.jpg"; // 设置下载文件名
+            link.href = URL.createObjectURL(blob);
+            link.download = fileName;
             document.body.appendChild(link);
-            link.click(); // 触发下载
-            document.body.removeChild(link); // 移除临时链接
+            link.click();
+            document.body.removeChild(link);
         } catch (error) {
             console.error("Error downloading image:", error);
-            alert("Failed to download the styled image.");
+            alert("Failed to download the image.");
+        }
+    };
+
+    const handleBlendWeightChange = (event) => {
+        setBlendWeight(parseFloat(event.target.value));
+    };
+
+    const handleApplyBlendingStyle = async () => {
+        if (!selectedFile) {
+            alert("Please upload an image!");
+            return;
+        }
+        if (!style1 || !style2 || style1 === style2) {
+            alert("Please select two different styles!");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("image", selectedFile);
+        formData.append("style1", style1);
+        formData.append("style2", style2);
+        formData.append("weight", blendWeight);
+
+        try {
+            setIsBlending(true);
+            const response = await fetch("http://localhost:5001/blend", {
+                method: "POST",
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to blend styles: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            if (data.imagePath) {
+                setBlendedImage(`http://localhost:5001${data.imagePath}`);
+            } else {
+                throw new Error("Invalid response from server.");
+            }
+        } catch (error) {
+            console.error("Error blending styles:", error);
+            alert("Failed to blend styles. Please try again.");
+        } finally {
+            setIsBlending(false);
         }
     };
 
     return (
         <div className="App">
             <div className="app-container">
-                <h1 className="app-title">
-                    🎨 <span>Style Transfer Application</span>
-                </h1>
+                <h1 className="app-title">🎨 Style Transfer Application</h1>
 
                 <div className="upload-section">
                     <h5>Upload Your Image</h5>
-                    <input type="file" onChange={handleFileChange} />
+                    <input type="file" onChange={handleFileChange}/>
                 </div>
 
                 <div className="image-display">
-                    {/* 上传图片 */}
                     {uploadedImage && (
-                        <div className="image-container">
+                        <div>
                             <h6>Uploaded Image:</h6>
-                            <img src={uploadedImage} alt="Uploaded Preview" />
+                            <div className="image-container">
+                                <img src={uploadedImage} alt="Uploaded Preview"/>
+                            </div>
                         </div>
-                    )}
 
-                    {/* 输出图片 */}
+                    )}
                     {outputImage && (
-                        <div
-                            className="image-container"
-                            onMouseEnter={() => setIsHovered(true)} // 显示蒙版
-                            onMouseLeave={() => setIsHovered(false)} // 隐藏蒙版
-                        >
+                        <div>
                             <h6>Styled Image:</h6>
-                            <div className="output-image-wrapper">
+                            <div
+                                className="output-image-wrapper"
+                                onMouseEnter={() => setIsHovered(true)}
+                                onMouseLeave={() => setIsHovered(false)}
+                            >
                                 <img src={outputImage} alt="Styled Output" />
                                 {isHovered && (
                                     <div
                                         className="download-overlay"
-                                        onClick={handleDownload}
+                                        onClick={() => handleDownload(outputImage, "styled_image.jpg")}
                                     >
                                         <i className="fas fa-download"></i> Download
                                     </div>
@@ -148,7 +200,7 @@ const App = () => {
                 <div className="style-section">
                     <h6>Select a Style</h6>
                     <div className="style-grid">
-                        {styles.map(({ styleName, imagePath }) => (
+                        {styles.map(({styleName, thumbnailPath}) => (
                             <div
                                 key={styleName}
                                 className={`style-card ${
@@ -157,12 +209,9 @@ const App = () => {
                                 onClick={() => handleStyleSelect(styleName)}
                             >
                                 <LazyLoadImage
-                                    src={`http://localhost:5001${imagePath}`}
+                                    src={`http://localhost:5001${thumbnailPath}`}
                                     alt={styleName}
                                     effect="blur"
-                                    onError={(e) =>
-                                        console.error(`Error loading thumbnail for ${styleName}:`, e)
-                                    }
                                 />
                                 <p>{styleName}</p>
                             </div>
@@ -177,6 +226,86 @@ const App = () => {
                 >
                     {isLoading ? "Applying Style..." : "Apply Style"}
                 </button>
+
+                <hr/>
+
+                <div className="blending-section">
+                    <h6>Blend Two Styles</h6>
+
+                    <div className="style-grid">
+                        {styles.map(({styleName, thumbnailPath}) => (
+                            <div
+                                key={styleName}
+                                className={`style-card ${
+                                    style1 === styleName ? "selected" : style2 === styleName ? "selected-secondary" : ""
+                                }`}
+                                onClick={() => {
+                                    if (style2 === styleName) {
+                                        setStyle2("");
+                                    } else if (style1 === styleName) {
+                                        setStyle1("");
+                                    } else if (!style1) {
+                                        setStyle1(styleName);
+                                    } else if (!style2) {
+                                        setStyle2(styleName);
+                                    }
+                                }}
+                            >
+                                <LazyLoadImage
+                                    src={`http://localhost:5001${thumbnailPath}`}
+                                    alt={styleName}
+                                    effect="blur"
+                                />
+                                <p>{styleName}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="slider-container">
+                        <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.01"
+                            value={blendWeight}
+                            onChange={handleBlendWeightChange}
+                        />
+                        <p>
+                            Blend Ratio: {Math.round((1 - blendWeight) * 100)}% / {Math.round(blendWeight * 100)}%
+                        </p>
+                    </div>
+                </div>
+                <div className="output-iamge">
+                    {blendedImage && (
+                        <div>
+                            <h6>Blended Image:</h6>
+                            <div
+                                className="output-image-wrapper"
+                                onMouseEnter={() => setIsHovered(true)}
+                                onMouseLeave={() => setIsHovered(false)}
+                            >
+                                <img src={blendedImage} alt="Blended Output" />
+                                {isHovered && (
+                                    <div
+                                        className="download-overlay"
+                                        onClick={() => handleDownload(blendedImage, "blended_image.jpg")}
+                                    >
+                                        <i className="fas fa-download"></i> Download
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <div className="button">
+                    <button
+                        className="apply-btn"
+                        onClick={handleApplyBlendingStyle}
+                        disabled={isBlending}
+                    >
+                        {isBlending ? "Applying Blending Styles..." : "Apply Blending Styles"}
+                    </button>
+                </div>
             </div>
         </div>
     );

@@ -17,11 +17,12 @@ from vgg import Vgg16
 # Global Variables
 IMAGE_SIZE = 512
 BATCH_SIZE = 4
-LEARNING_RATE = 2e-4
+LEARNING_RATE = 1e-4
 EPOCHS = 2
-STYLE_WEIGHT = 5e10
-CONTENT_WEIGHT = 5e5
-TV_WEIGHT = 5e-6
+STYLE_WEIGHT = 1e9
+CONTENT_WEIGHT = 1e6
+TV_WEIGHT = 1e-5
+
 
 def get_device(gpu=None):
     """
@@ -181,36 +182,75 @@ def style_transfer(args):
 
     print(f"Style transfer complete. Output saved to {args.output}")
 
+def blend_styles(args):
+    device = get_device(args.gpu)
+
+    # Load content image
+    content = utils.load_image(args.source)
+    content = transforms.ToTensor()(content).unsqueeze(0).to(device)
+
+    # Load style models
+    style_model1 = ImageTransformNet().to(device)
+    style_model1.load_state_dict(torch.load(args.model_path1, map_location=device))
+    style_model1.eval()
+
+    style_model2 = ImageTransformNet().to(device)
+    style_model2.load_state_dict(torch.load(args.model_path2, map_location=device))
+    style_model2.eval()
+
+    # Apply styles with blending
+    with torch.no_grad():
+        output1 = style_model1(content).cpu()
+        output2 = style_model2(content).cpu()
+        blended_output = args.weight * output1 + (1 - args.weight) * output2
+
+    utils.save_image(args.output, blended_output.squeeze(0))
+    print(f"Blended style transfer complete. Output saved to {args.output}")
+
 
 def main():
-    parser = argparse.ArgumentParser(description="style transfer in pytorch")
+    parser = argparse.ArgumentParser(description="Style transfer in PyTorch")
     subparsers = parser.add_subparsers(title="subcommands", dest="subcommand")
 
-    train_parser = subparsers.add_parser("train", help="train a model to do style transfer")
-    train_parser.add_argument("--style-image", type=str, required=True, help="path to a style image to train with")
-    train_parser.add_argument("--dataset", type=str, required=True, help="path to a dataset")
+    # Train subcommand
+    train_parser = subparsers.add_parser("train", help="Train a model to do style transfer")
+    train_parser.add_argument("--style-image", type=str, required=True, help="Path to a style image to train with")
+    train_parser.add_argument("--dataset", type=str, required=True, help="Path to a dataset")
     train_parser.add_argument("--gpu", type=int, default=None, help="ID of GPU to be used")
     train_parser.add_argument("--visualize", type=int, default=None, help="Set to 1 if you want to visualize training")
 
-    style_parser = subparsers.add_parser("transfer", help="do style transfer with a trained model")
-    style_parser.add_argument("--model-path", type=str, required=True, help="path to a pretrained model for a style image")
-    style_parser.add_argument("--source", type=str, required=True, help="path to source image")
-    style_parser.add_argument("--output", type=str, required=True, help="file name for stylized output image")
-    style_parser.add_argument("--gpu", type=int, default=None, help="ID of GPU to be used")
+    # Transfer subcommand
+    transfer_parser = subparsers.add_parser("transfer", help="Do style transfer with a trained model")
+    transfer_parser.add_argument("--model-path", type=str, required=True, help="Path to a pretrained model")
+    transfer_parser.add_argument("--source", type=str, required=True, help="Path to source image")
+    transfer_parser.add_argument("--output", type=str, required=True, help="Path to save the stylized output")
+    transfer_parser.add_argument("--gpu", type=int, default=None, help="ID of GPU to be used")
+
+    # Blend subcommand
+    blend_parser = subparsers.add_parser("blend", help="Blend two styles")
+    blend_parser.add_argument("--model-path1", type=str, required=True, help="Path to the first style model")
+    blend_parser.add_argument("--model-path2", type=str, required=True, help="Path to the second style model")
+    blend_parser.add_argument("--weight", type=float, required=True, help="Weight for the first style (0-1)")
+    blend_parser.add_argument("--source", type=str, required=True, help="Path to source image")
+    blend_parser.add_argument("--output", type=str, required=True, help="Path to save the blended output")
+    blend_parser.add_argument("--gpu", type=int, default=None, help="ID of GPU to be used")
 
     args = parser.parse_args()
 
     if args.subcommand == "train":
+        print("Training!")
         train(args)
     elif args.subcommand == "transfer":
+        print("Style transferring!")
         style_transfer(args)
+    elif args.subcommand == "blend":
+        print("Blending styles!")
+        blend_styles(args)
     else:
         print("Invalid command")
 
-
 if __name__ == "__main__":
     main()
-
 
 
 

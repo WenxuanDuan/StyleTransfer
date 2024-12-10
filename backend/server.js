@@ -10,6 +10,9 @@ const fs = require('fs');
 const app = express();
 const PORT = 5001;
 
+const [isBlending, setIsBlending] = useState(false); // 控制是否正在进行 blending
+const [blendedImage, setBlendedImage] = useState(null); // 存储 blending 输出图片的 URL
+
 // 配置 CORS 和解析 JSON
 app.use(cors());
 app.use(bodyParser.json());
@@ -34,11 +37,12 @@ if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir);
 }
 
+
 // 生成缩略图函数
 async function generateThumbnail(inputPath, outputPath) {
     try {
         await sharp(inputPath)
-            .resize(100, 100, {
+            .resize(200, 200, { // 提高分辨率
                 fit: 'cover',
             })
             .toFile(outputPath);
@@ -114,9 +118,14 @@ app.post('/upload', upload.single('image'), (req, res) => {
     console.log(`Image uploaded: ${imagePath}`);
     console.log(`Selected style: ${style}`);
 
-    // 定义输出路径，注意将路径用双引号括起来以处理空格
-    const outputImagePath = path.join(__dirname, 'output', `output_${Date.now()}.jpg`);
-    const command = `/Users/dwx/Library/Caches/pypoetry/virtualenvs/7370env-6DOi-_x6-py3.12/bin/python style.py transfer --model-path ./models/${style}.model --source "${imagePath}" --output "${outputImagePath}"`;
+    // 确保输出目录存在
+    const outputDir = path.join(__dirname, 'output');
+    if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir);
+    }
+
+    const outputImagePath = `output/output_${Date.now()}.jpg`;
+    const command = `/Users/dwx/Library/Caches/pypoetry/virtualenvs/7370env-6DOi-_x6-py3.12/bin/python style.py transfer --model-path ./models/${style}.model --source ${imagePath} --output ${outputImagePath}`;
 
     exec(command, (error, stdout, stderr) => {
         if (error) {
@@ -128,9 +137,42 @@ app.post('/upload', upload.single('image'), (req, res) => {
         }
 
         console.log('Style transfer output:', stdout);
-        res.json({ imagePath: `/output/${path.basename(outputImagePath)}` });
+        res.json({ imagePath: `/${outputImagePath}` }); // 更新路径
     });
 });
+
+
+// Blend functionality
+app.post('/blend', upload.single('image'), (req, res) => {
+    const { style1, style2, weight } = req.body;
+
+    if (!style1 || !style2 || !weight) {
+        return res.status(400).json({ error: "Missing required parameters: style1, style2, weight" });
+    }
+
+    const blendWeight = parseFloat(weight);
+    if (isNaN(blendWeight) || blendWeight < 0 || blendWeight > 1) {
+        return res.status(400).json({ error: "Invalid blend weight. Must be a float between 0 and 1." });
+    }
+
+    const imagePath = req.file.path;
+    const outputImagePath = `output/blended_output_${Date.now()}.jpg`;
+    const command = `python style.py blend --model-path1 ./models/${style1}.model --model-path2 ./models/${style2}.model --weight ${blendWeight} --source ${imagePath} --output ${outputImagePath}`;
+
+    exec(command, (error, stdout, stderr) => {
+        if (error) {
+            console.error("Error executing blend script:", stderr);
+            return res.status(500).json({
+                error: "Blending styles failed",
+                details: stderr || error.message,
+            });
+        }
+
+        console.log("Blend styles output:", stdout);
+        res.json({ imagePath: `/${outputImagePath}` });
+    });
+});
+
 
 
 // 启动服务器
