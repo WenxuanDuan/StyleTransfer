@@ -10,9 +10,6 @@ const fs = require('fs');
 const app = express();
 const PORT = 5001;
 
-const [isBlending, setIsBlending] = useState(false); // 控制是否正在进行 blending
-const [blendedImage, setBlendedImage] = useState(null); // 存储 blending 输出图片的 URL
-
 // 配置 CORS 和解析 JSON
 app.use(cors());
 app.use(bodyParser.json());

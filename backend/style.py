@@ -17,12 +17,11 @@ from vgg import Vgg16
 # Global Variables
 IMAGE_SIZE = 512
 BATCH_SIZE = 4
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 2e-4
 EPOCHS = 2
-STYLE_WEIGHT = 1e9
-CONTENT_WEIGHT = 1e6
-TV_WEIGHT = 1e-5
-
+STYLE_WEIGHT = 1e11
+CONTENT_WEIGHT = 1e5
+TV_WEIGHT = 1e-6
 
 def get_device(gpu=None):
     """

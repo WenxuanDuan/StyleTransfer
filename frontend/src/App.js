@@ -17,6 +17,7 @@ const App = () => {
     const [isBlending, setIsBlending] = useState(false);
     const [blendedImage, setBlendedImage] = useState(null);
 
+
     useEffect(() => {
         const fetchStyles = async () => {
             try {
@@ -33,7 +34,14 @@ const App = () => {
             }
         };
         fetchStyles();
-    }, []);
+        const slider = document.querySelector(".slider-container input[type='range']");
+        if (slider) {
+            const gradient = `linear-gradient(to right, #ff9800 0%, #ff9800 ${
+                blendWeight * 100
+            }%, #3f51b5 ${blendWeight * 100}%, #3f51b5 100%)`;
+            slider.style.background = gradient;
+        }
+    }, [blendWeight]);
 
     const handleFileChange = (event) => {
         const file = event.target.files[0];
@@ -111,8 +119,18 @@ const App = () => {
     };
 
     const handleBlendWeightChange = (event) => {
-        setBlendWeight(parseFloat(event.target.value));
+        const weight = parseFloat(event.target.value);
+        console.log(event.target.value);
+        setBlendWeight(weight);
+
+        // 获取滑块 DOM 元素并更新背景颜色
+        const slider = event.target;
+        const gradient = `linear-gradient(to right, #ff9800 0%, #ff9800 ${weight * 100}%, #3f51b5 ${weight * 100}%, #3f51b5 100%)`;
+        slider.style.background = gradient;
+
+        console.log(`Blend weight updated: ${weight * 100}% / ${(1 - weight) * 100}%`);
     };
+
 
     const handleApplyBlendingStyle = async () => {
         if (!selectedFile) {
@@ -271,10 +289,18 @@ const App = () => {
                             onChange={handleBlendWeightChange}
                         />
                         <p>
-                            Blend Ratio: {Math.round((1 - blendWeight) * 100)}% / {Math.round(blendWeight * 100)}%
+                            <span style={{color: "#ff9800"}}>
+                                {Math.round(blendWeight * 100)}%
+                            </span>{" "}
+                                                /
+                                                <span style={{color: "#3f51b5"}}>
+                                {Math.round((1 - blendWeight) * 100)}%
+                            </span>
                         </p>
                     </div>
+
                 </div>
+
                 <div className="output-iamge">
                     {blendedImage && (
                         <div>
@@ -284,7 +310,7 @@ const App = () => {
                                 onMouseEnter={() => setIsHovered(true)}
                                 onMouseLeave={() => setIsHovered(false)}
                             >
-                                <img src={blendedImage} alt="Blended Output" />
+                                <img src={blendedImage} alt="Blended Output"/>
                                 {isHovered && (
                                     <div
                                         className="download-overlay"
