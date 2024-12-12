@@ -15,13 +15,13 @@ from network import ImageTransformNet
 from vgg import Vgg16
 
 # Global Variables
-IMAGE_SIZE = 512
+IMAGE_SIZE = 256
 BATCH_SIZE = 4
-LEARNING_RATE = 2e-4
+LEARNING_RATE = 1e-3
 EPOCHS = 2
-STYLE_WEIGHT = 1e11
+STYLE_WEIGHT = 3e10
 CONTENT_WEIGHT = 1e5
-TV_WEIGHT = 1e-6
+TV_WEIGHT = 1e-7
 
 def get_device(gpu=None):
     """
